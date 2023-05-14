@@ -101,15 +101,18 @@ class BlackWhiteState:
     def get_state_dim(self):
         return 3 ** (self.board_shape[0] * self.board_shape[1])
 
-    def to_state_index(self):
+    def get_state_index(self, board):
         index = 0
         base = 1
-        for row in self.board:
+        for row in board:
             for piece in row:
                 d = piece_value_to_player_id(piece)
                 index += d * base
                 base *= 3
         return index
+
+    def to_state_index(self):
+        return self.get_state_index(self.board)
 
     def get_state_numpy_shape(self):
         return 1, 1, self.board_shape[0], self.board_shape[1]
@@ -124,7 +127,7 @@ class BlackWhiteState:
         return action[0] * self.board_shape[1] + action[1]
 
     def action_index_to_action(self, action_index):
-        return action_index // self.board_shape[0], action_index % self.board_shape[1]
+        return action_index // self.board_shape[1], action_index % self.board_shape[1]
 
     def action_to_action_numpy(self, action):
         action_index = self.action_to_action_index(action)
@@ -144,11 +147,74 @@ class BlackWhiteState:
     def get_equivalent_num(self):
         return 8
 
+    def get_rot90_board(self, board):
+        h = len(board)
+        w = len(board[0])
+        board1 = [[0 for j in range(h)] for i in range(w)]
+        for i in range(w):
+            for j in range(h):
+                board1[i][j] = board[j][w-1-i]
+        return board1
+
+    def get_flip_y_board(self, board):
+        h = len(board)
+        w = len(board[0])
+        board1 = [[0 for j in range(w)] for i in range(h)]
+        for i in range(h):
+            for j in range(w):
+                board1[i][j] = board[h-1-i][j]
+        return board1
+
     def get_equivalent_state_indexes(self, state_index):
-        return [state_index] * self.get_equivalent_num()
+        state_index1 = state_index
+        board = [[0 for j in range(self.board_shape[1])] for i in range(self.board_shape[0])]
+        for i in range(self.board_shape[0]):
+            for j in range(self.board_shape[1]):
+                board[i][j] = state_index1 % 3
+                state_index1 //= 3
+        rot1_board = self.get_rot90_board(board)
+        rot2_board = self.get_rot90_board(rot1_board)
+        rot3_board = self.get_rot90_board(rot2_board)
+        flip_y_board = self.get_flip_y_board(board)
+        flip_y_rot1_board = self.get_rot90_board(flip_y_board)
+        flip_y_rot2_board = self.get_rot90_board(flip_y_rot1_board)
+        flip_y_rot3_board = self.get_rot90_board(flip_y_rot2_board)
+        return [
+            state_index,
+            self.get_state_index(rot1_board),
+            self.get_state_index(rot2_board),
+            self.get_state_index(rot3_board),
+            self.get_state_index(flip_y_board),
+            self.get_state_index(flip_y_rot1_board),
+            self.get_state_index(flip_y_rot2_board),
+            self.get_state_index(flip_y_rot3_board),
+            ]
+
+    def get_rot90_action(self, action):
+        return (self.board_shape[0] - 1 - action[1], action[0])
+
+    def get_flip_y_action(self, action):
+        return (self.board_shape[0] - 1 - action[0], action[1])
 
     def get_equivalent_action_indexes(self, action_index):
-        return [action_index] * self.get_equivalent_num()
+        action = self.action_index_to_action(action_index)
+        rot1_action = self.get_rot90_action(action)
+        rot2_action = self.get_rot90_action(rot1_action)
+        rot3_action = self.get_rot90_action(rot2_action)
+        flip_y_action = self.get_flip_y_action(action)
+        flip_y_rot1_action = self.get_rot90_action(flip_y_action)
+        flip_y_rot2_action = self.get_rot90_action(flip_y_rot1_action)
+        flip_y_rot3_action = self.get_rot90_action(flip_y_rot2_action)
+        return [
+            action_index,
+            self.action_to_action_index(rot1_action),
+            self.action_to_action_index(rot2_action),
+            self.action_to_action_index(rot3_action),
+            self.action_to_action_index(flip_y_action),
+            self.action_to_action_index(flip_y_rot1_action),
+            self.action_to_action_index(flip_y_rot2_action),
+            self.action_to_action_index(flip_y_rot3_action),
+            ]
 
     def get_equivalent_state_numpy(self, state_numpy):
         state_numpy_flip_y = np.flip(state_numpy, axis=2)
