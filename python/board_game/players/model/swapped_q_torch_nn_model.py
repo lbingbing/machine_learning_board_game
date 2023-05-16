@@ -2,6 +2,9 @@ from . import q_torch_nn_model
 from . import swapped_q_model
 
 class SwappedQTorchNNModel(q_torch_nn_model.QTorchNNModel, swapped_q_model.SwappedQModel):
+    def __init__(self, state):
+        q_torch_nn_model.QTorchNNModel.__init__(self, state)
+
     def train(self, batch, learning_rate):
         swapped_batch = self.get_swapped_batch(batch)
         return super().train(swapped_batch, learning_rate)

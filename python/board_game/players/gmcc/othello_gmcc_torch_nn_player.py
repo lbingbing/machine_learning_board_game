@@ -7,26 +7,26 @@ from . import gmcc_torch_nn_model
 from ..model import model_player
 
 class Network(torch.nn.Module):
-    def __init__(self, state):
+    def __init__(self, state_shape, action_dim):
         super().__init__()
         sequential1 = torch.nn.Sequential(
-            torch.nn.Conv2d(state.get_state_numpy_shape()[1], 64, 3, padding=2),
+            torch.nn.Conv2d(state_shape[1], 64, 3, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 64, 3, padding=2),
+            torch.nn.Conv2d(64, 64, 3, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 64, 3, padding=2),
+            torch.nn.Conv2d(64, 64, 3, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 64, 3, padding=2),
+            torch.nn.Conv2d(64, 64, 3, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 64, 3, padding=2),
+            torch.nn.Conv2d(64, 64, 3, padding=1),
             torch.nn.ReLU(),
             )
-        dim1 = functools.reduce(operator.mul, sequential1(torch.rand(*state.get_state_numpy_shape())).shape)
+        dim1 = functools.reduce(operator.mul, sequential1(torch.rand(*state_shape)).shape)
         sequential2 = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(dim1, state.get_action_dim()),
+            torch.nn.Linear(dim1, action_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(state.get_action_dim(), state.get_action_dim()),
+            torch.nn.Linear(action_dim, action_dim),
             )
         self.layers = torch.nn.Sequential(
             sequential1,
@@ -38,7 +38,7 @@ class Network(torch.nn.Module):
 
 class OthelloGMCCTorchNNModel(gmcc_torch_nn_model.GMCCTorchNNModel):
     def create_network(self, state):
-        return Network(state)
+        return Network(state.get_state_numpy_shape(), state.get_action_dim())
 
 class OthelloGMCCTorchNNPlayer(model_player.ModelPlayer):
     def create_model(self, state):

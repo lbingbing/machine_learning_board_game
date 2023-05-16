@@ -2,6 +2,9 @@ from . import q_table_model
 from . import swapped_q_model
 
 class SwappedQTableModel(q_table_model.QTableModel, swapped_q_model.SwappedQModel):
+    def __init__(self, state):
+        q_table_model.QTableModel.__init__(self, state)
+
     def train(self, batch, learning_rate):
         swapped_batch = self.get_swapped_batch(batch)
         return super().train(swapped_batch, learning_rate)

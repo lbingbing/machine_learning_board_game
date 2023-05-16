@@ -490,6 +490,9 @@ class CChessState:
     def swap_action(self, action):
         return BOARD_HEIGHT - 1 - action[0], action[1], BOARD_HEIGHT - 1 - action[2], action[3]
 
+    def get_swap_action_index_table(self):
+        return [self.action_to_action_index(self.swap_action(self.action_index_to_action(action_index))) for action_index in range(ACTION_DIM)]
+
     def get_state_numpy_shape(self):
         return 1, 1, BOARD_HEIGHT, BOARD_WIDTH
 

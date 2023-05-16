@@ -98,6 +98,9 @@ class BlackWhiteState:
     def swap_action(self, action):
         return action
 
+    def get_swap_action_index_table(self):
+        return [self.action_to_action_index(self.swap_action(self.action_index_to_action(action_index))) for action_index in range(self.get_action_dim())]
+
     def get_state_dim(self):
         return 3 ** (self.board_shape[0] * self.board_shape[1])
 
