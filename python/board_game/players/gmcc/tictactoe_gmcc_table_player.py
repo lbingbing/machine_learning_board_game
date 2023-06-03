@@ -1,9 +1,8 @@
 from . import gmcc_table_model
 from ..model import model_player
 
-class TicTacToeGMCCTableModel(gmcc_table_model.GMCCTableModel):
-    pass
+def create_model(state):
+    return gmcc_table_model.GMCCTableModel(state.get_name(), state.get_state_dim(), state.get_action_dim())
 
-class TicTacToeGMCCTablePlayer(model_player.ModelPlayer):
-    def create_model(self, state):
-        return TicTacToeGMCCTableModel(state)
+def create_player(player_id, state):
+    return model_player.ModelPlayer(player_id, create_model(state))

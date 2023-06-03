@@ -1,18 +1,16 @@
 from .. import player
 
 class ModelPlayer(player.Player):
-    def __init__(self, player_id, state):
+    def __init__(self, player_id, model):
         super().__init__(player_id)
 
-        self.model = self.create_model(state)
-        assert self.model.exists()
+        assert model.exists()
+        self.model = model
         self.model.load()
+        self.model.set_training(False)
 
     def get_type(self):
         return '{}_{}'.format(self.model.get_model_algorithm(), self.model.get_model_structure())
-
-    def create_model(self, state):
-        raise NotImplementedError()
 
     def get_action(self, state):
         super().get_action(state)

@@ -11,12 +11,18 @@ def create_player(state, player_type, player_id):
     elif player_type == player.MCTS_PLAYER:
         from .mcts import mcts_player
         p = mcts_player.MctsPlayer(player_id, 1000)
+    elif player_type == player.PVMCTS_TABLE_PLAYER:
+        from .pvmcts import tictactoe_pvmcts_table_player
+        p = tictactoe_pvmcts_table_player.create_player(player_id, state, 1000)
+    elif player_type == player.PVMCTS_TORCH_NN_PLAYER:
+        from .pvmcts import tictactoe_pvmcts_torch_nn_player
+        p = tictactoe_pvmcts_torch_nn_player.create_player(player_id, state, 1000)
     elif player_type == player.GMCC_TABLE_PLAYER:
         from .gmcc import tictactoe_gmcc_table_player
-        p = tictactoe_gmcc_table_player.TicTacToeGMCCTablePlayer(player_id, state)
+        p = tictactoe_gmcc_table_player.create_player(player_id, state)
     elif player_type == player.GMCC_TORCH_NN_PLAYER:
         from .gmcc import tictactoe_gmcc_torch_nn_player
-        p = tictactoe_gmcc_torch_nn_player.TicTacToeGMCCTorchNNPlayer(player_id, state)
+        p = tictactoe_gmcc_torch_nn_player.create_player(player_id, state)
     else:
         assert False
     return p

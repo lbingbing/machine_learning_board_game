@@ -14,7 +14,7 @@ class Node:
         self.parent = parent
 
     def __str__(self):
-        return 'player={0}\naction={1}\nN={2}\nW={3}\nQ={4}'.format(self.player_id, self.action, self.N, self.W, self.Q)
+        return 'player={}\naction={}\nN={}\nW={}\nQ={}'.format(self.player_id, self.action, self.N, self.W, self.Q)
 
     def is_fully_expanded(self):
         return not self.unexpanded_actions
@@ -33,11 +33,11 @@ class Node:
         return math.sqrt(2 * math.log(self.parent.N) / self.N)
 
     def uct_select_children(self):
-        child = max(self.children, key = lambda c: c.get_uct_value())
+        child = max(self.children, key=lambda c: c.get_uct_value())
         return child
 
     def get_most_visited_child(self):
-        child = max(self.children, key = lambda c: c.N)
+        child = max(self.children, key=lambda c: c.N)
         return child
 
     def update(self, V):

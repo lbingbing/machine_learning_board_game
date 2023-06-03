@@ -490,7 +490,7 @@ class CChessState:
     def swap_action(self, action):
         return BOARD_HEIGHT - 1 - action[0], action[1], BOARD_HEIGHT - 1 - action[2], action[3]
 
-    def get_swap_action_index_table(self):
+    def get_swapped_action_index_table(self):
         return [self.action_to_action_index(self.swap_action(self.action_index_to_action(action_index))) for action_index in range(ACTION_DIM)]
 
     def get_state_numpy_shape(self):
@@ -513,6 +513,9 @@ class CChessState:
         action_numpy = np.zeros((self.get_action_dim(),), dtype=bool)
         action_numpy[action_index] = True
         return action_numpy.reshape(1, self.get_action_dim())
+
+    def get_legal_action_indexes(self):
+        return [self.action_to_action_index(action) for action in self.get_legal_actions(self.get_cur_player_id())]
     
     def get_legal_action_mask_numpy(self):
         legal_action_mask_numpy = np.zeros((self.get_action_dim(),), dtype=bool)
@@ -533,10 +536,8 @@ class CChessState:
             axis=0)
 
     def get_equivalent_action_numpy(self, action_numpy):
-        equivalent_action_indexes = [action_index_to_equivalent_action_index_table[action_index] for action_index in np.argwhere(action_numpy)[:,1].tolist()]
-        equivalent_action_numpy = np.zeros((action_numpy.shape[0], self.get_action_dim()), dtype=bool)
-        for i, action_index in enumerate(equivalent_action_indexes):
-            equivalent_action_numpy[i, action_index] = True
+        equivalent_action_numpy = action_numpy.copy()
+        equivalent_action_numpy[:,list(range(self.get_action_dim()))] = action_numpy[:,action_index_to_equivalent_action_index_table]
         return np.concatenate(
             [
             action_numpy,

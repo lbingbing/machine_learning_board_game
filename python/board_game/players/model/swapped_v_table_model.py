@@ -2,8 +2,8 @@ from . import v_table_model
 from . import swapped_v_model
 
 class SwappedVTableModel(v_table_model.VTableModel, swapped_v_model.SwappedVModel):
-    def __init__(self, state):
-        v_table_model.VTableModel.__init__(self, state)
+    def __init__(self, game_name, state_dim):
+        v_table_model.VTableModel.__init__(self, game_name, state_dim)
 
     def train(self, batch, learning_rate):
         swapped_batch = self.get_swapped_batch(batch)

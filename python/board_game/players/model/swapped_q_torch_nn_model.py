@@ -2,8 +2,8 @@ from . import q_torch_nn_model
 from . import swapped_q_model
 
 class SwappedQTorchNNModel(q_torch_nn_model.QTorchNNModel, swapped_q_model.SwappedQModel):
-    def __init__(self, state):
-        q_torch_nn_model.QTorchNNModel.__init__(self, state)
+    def __init__(self, game_name, network):
+        q_torch_nn_model.QTorchNNModel.__init__(self, game_name, network)
 
     def train(self, batch, learning_rate):
         swapped_batch = self.get_swapped_batch(batch)
@@ -27,9 +27,9 @@ class SwappedQTorchNNModel(q_torch_nn_model.QTorchNNModel, swapped_q_model.Swapp
         state, swapped = self.get_swapped_state(state)
         return super().get_max_Q(state)
 
-    def get_opt_action(self, state):
+    def get_action(self, state):
         state, swapped = self.get_swapped_state(state)
-        action = super().get_opt_action(state)
+        action = super().get_action(state)
         if swapped:
             action = state.swap_action(action)
         return action

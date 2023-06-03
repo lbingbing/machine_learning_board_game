@@ -7,9 +7,12 @@ from ..utils import replay_memory
 from ..utils import train_flags
 
 def sample(state, model, rmemory, configs):
+    model.set_training(False)
+
     episode_num_per_iteration = configs['episode_num_per_iteration']
     dynamic_epsilon = configs['dynamic_epsilon']
-    discount = configs['discount']
+
+    rmemory.resize(configs['replay_memory_size'])
 
     scores = [0] * 3
     action_nums = []
@@ -19,7 +22,7 @@ def sample(state, model, rmemory, configs):
         for t, player_id in zip(itertools.count(), itertools.cycle((1, 2))):
             epsilon = train_utils.get_dynamic_epsilon(t, dynamic_epsilon)
             if random.random() > epsilon:
-                action = model.get_opt_action(state)
+                action = model.get_action(state)
             else:
                 legal_actions = state.get_legal_actions(player_id)
                 action = random.choice(legal_actions)
@@ -31,18 +34,19 @@ def sample(state, model, rmemory, configs):
                 break
         scores[result] += 1
         action_nums.append(state.get_action_num())
-        if result > 0:
-            Gs = (1, -1)
+        if result == 1:
+            Vs = (1, -1)
+        elif result == 2:
+            Vs = (-1, 1)
         else:
-            Gs = (0, 0)
-        G_discount = 1
-        for index, ((S, A), G) in enumerate(zip(reversed(samples), itertools.cycle(Gs))):
-            rmemory.record((S, A, G * G_discount))
-            if index % 2 == 1:
-                G_discount *= discount
+            Vs = (0, 0)
+        for (S, A), V in zip(samples, itertools.cycle(Vs)):
+            rmemory.record((S, A, V))
     return scores, action_nums
 
 def train(model, rmemory, configs, iteration_id):
+    model.set_training(True)
+
     batch_num_per_iteration = configs['batch_num_per_iteration']
     batch_size = configs['batch_size']
     learning_rate = train_utils.get_dynamic_learning_rate(iteration_id, configs['dynamic_learning_rate'])
@@ -56,24 +60,17 @@ def train(model, rmemory, configs, iteration_id):
 
 def main(state, model, configs):
     parser = argparse.ArgumentParser('train {} gmcc model'.format(state.get_name()))
+    train_utils.add_train_arguments(parser)
     args = parser.parse_args()
 
     if not train_flags.check_and_update_train_configs(model.get_model_path(), configs):
         print('train configs:')
-        for k, v in configs.items():
-            print('{}: {}'.format(k, v))
+        train_flags.print_train_configs(configs)
 
     check_interval = configs['check_interval']
     save_model_interval = configs['save_model_interval']
 
-    if model.exists():
-        model.load()
-        print('model {} loaded'.format(model.get_model_path()))
-    else:
-        model.initialize()
-        print('model {} created'.format(model.get_model_path()))
-    print('use {} device'.format(model.get_device()))
-    model.set_training(True)
+    train_utils.init_model(model, args.device)
 
     rmemory = replay_memory.ReplayMemory(configs['replay_memory_size'])
 
@@ -90,13 +87,14 @@ def main(state, model, configs):
         need_check = iteration_id % check_interval == 0
         if need_check:
             state.reset()
+            model.set_training(False)
             max_Q1 = model.get_max_Q(state)
-            action = model.get_opt_action(state)
+            action = model.get_action(state)
             state.do_action(1, action)
             max_Q2 = model.get_max_Q(state)
             avg_loss = sum(losses) / len(losses)
             avg_action_num = sum(action_nums) / len(action_nums)
-            print('{} iteration: {} avg_loss: {:.8f} max_Q1: {:.8f} max_Q2: {:.8f} p1/p2/draw: {}/{}/{} avg_action_num: {}'.format(train_utils.get_current_time_str(), iteration_id, avg_loss, max_Q1, max_Q2, scores[1], scores[2], scores[0], avg_action_num))
+            print('{} iter: {} loss: {:.2f} max_Qs: {:.2f} {:.2f} p1/p2/draw: {}/{}/{} action_num: {}'.format(train_utils.get_current_time_str(), iteration_id, avg_loss, max_Q1, max_Q2, scores[1], scores[2], scores[0], avg_action_num))
             losses.clear()
             scores = [0, 0, 0]
             action_nums.clear()
@@ -106,4 +104,6 @@ def main(state, model, configs):
             print('model {} saved'.format(model.get_model_path()))
         if need_check and train_flags.check_and_clear_stop_train_flag_file(model.get_model_path()):
             print('stopped')
+            break
+        if args.iteration_num > 0 and iteration_id >= args.iteration_num:
             break

@@ -1,15 +1,19 @@
-HUMAN_PLAYER         = 'human'
-TRANSCRIPT_PLAYER    = 'transcript'
-RANDOM_PLAYER        = 'random'
-MCTS_PLAYER          = 'mcts'
-GMCC_TABLE_PLAYER    = 'gmcc_table'
-GMCC_TORCH_NN_PLAYER = 'gmcc_torch_nn'
+HUMAN_PLAYER           = 'human'
+TRANSCRIPT_PLAYER      = 'transcript'
+RANDOM_PLAYER          = 'random'
+MCTS_PLAYER            = 'mcts'
+PVMCTS_TABLE_PLAYER    = 'pvmcts_table'
+PVMCTS_TORCH_NN_PLAYER = 'pvmcts_torch_nn'
+GMCC_TABLE_PLAYER      = 'gmcc_table'
+GMCC_TORCH_NN_PLAYER   = 'gmcc_torch_nn'
 
 PLAYER_TYPES = [
     HUMAN_PLAYER,
     TRANSCRIPT_PLAYER,
     RANDOM_PLAYER,
     MCTS_PLAYER,
+    PVMCTS_TABLE_PLAYER,
+    PVMCTS_TORCH_NN_PLAYER,
     GMCC_TABLE_PLAYER,
     GMCC_TORCH_NN_PLAYER,
     ]

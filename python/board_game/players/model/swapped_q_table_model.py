@@ -2,8 +2,8 @@ from . import q_table_model
 from . import swapped_q_model
 
 class SwappedQTableModel(q_table_model.QTableModel, swapped_q_model.SwappedQModel):
-    def __init__(self, state):
-        q_table_model.QTableModel.__init__(self, state)
+    def __init__(self, game_name, state_dim, action_dim):
+        q_table_model.QTableModel.__init__(self, game_name, state_dim, action_dim)
 
     def train(self, batch, learning_rate):
         swapped_batch = self.get_swapped_batch(batch)
@@ -27,9 +27,9 @@ class SwappedQTableModel(q_table_model.QTableModel, swapped_q_model.SwappedQMode
         state, swapped = self.get_swapped_state(state)
         return super().get_max_Q(state)
 
-    def get_opt_action(self, state):
+    def get_action(self, state):
         state, swapped = self.get_swapped_state(state)
-        action = super().get_opt_action(state)
+        action = super().get_action(state)
         if swapped:
             action = state.swap_action(action)
         return action
