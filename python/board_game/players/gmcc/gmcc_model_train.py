@@ -5,8 +5,9 @@ import itertools
 from ..utils import train_utils
 from ..utils import replay_memory
 from ..utils import train_flags
+from ..utils import train_monitor
 
-def sample(state, model, rmemory, configs):
+def sample(state, model, rmemory, configs, monitor):
     model.set_training(False)
 
     episode_num_per_iteration = configs['episode_num_per_iteration']
@@ -19,6 +20,8 @@ def sample(state, model, rmemory, configs):
     for episode_id in range(episode_num_per_iteration):
         samples = []
         state.reset()
+        if monitor:
+            monitor.send_state(state.clone())
         for t, player_id in zip(itertools.count(), itertools.cycle((1, 2))):
             epsilon = train_utils.get_dynamic_epsilon(t, dynamic_epsilon)
             if random.random() > epsilon:
@@ -28,9 +31,10 @@ def sample(state, model, rmemory, configs):
                 action = random.choice(legal_actions)
             samples.append((state.clone(), action))
             state.do_action(player_id, action)
+            if monitor:
+                monitor.send_state(state.clone())
             result = state.get_result()
-            is_end = state.is_end(result)
-            if is_end:
+            if state.is_end(result):
                 break
         scores[result] += 1
         action_nums.append(state.get_action_num())
@@ -67,9 +71,6 @@ def main(state, model, configs):
         print('train configs:')
         train_flags.print_train_configs(configs)
 
-    check_interval = configs['check_interval']
-    save_model_interval = configs['save_model_interval']
-
     train_utils.init_model(model, args.device)
 
     rmemory = replay_memory.ReplayMemory(configs['replay_memory_size'])
@@ -77,33 +78,35 @@ def main(state, model, configs):
     losses = []
     scores = [0, 0, 0]
     action_nums = []
-    for iteration_id in itertools.count(1):
-        scores1, action_nums1 = sample(state, model, rmemory, configs)
-        losses1 = train(model, rmemory, configs, iteration_id)
-        losses += losses1
-        for i, e in enumerate(scores1):
-            scores[i] += e
-        action_nums += action_nums1
-        need_check = iteration_id % check_interval == 0
-        if need_check:
-            state.reset()
-            model.set_training(False)
-            max_Q1 = model.get_max_Q(state)
-            action = model.get_action(state)
-            state.do_action(1, action)
-            max_Q2 = model.get_max_Q(state)
-            avg_loss = sum(losses) / len(losses)
-            avg_action_num = sum(action_nums) / len(action_nums)
-            print('{} iter: {} loss: {:.2f} max_Qs: {:.2f} {:.2f} p1/p2/draw: {}/{}/{} action_num: {}'.format(train_utils.get_current_time_str(), iteration_id, avg_loss, max_Q1, max_Q2, scores[1], scores[2], scores[0], avg_action_num))
-            losses.clear()
-            scores = [0, 0, 0]
-            action_nums.clear()
-            train_flags.check_and_update_train_configs(model.get_model_path(), configs)
-        if iteration_id % save_model_interval == 0 or (need_check and train_flags.check_and_clear_save_model_flag_file(model.get_model_path())):
-            model.save()
-            print('model {} saved'.format(model.get_model_path()))
-        if need_check and train_flags.check_and_clear_stop_train_flag_file(model.get_model_path()):
-            print('stopped')
-            break
-        if args.iteration_num > 0 and iteration_id >= args.iteration_num:
-            break
+    with train_monitor.create_training_monitor(args.monitor_port) as monitor:
+        for iteration_id in itertools.count(1):
+            scores1, action_nums1 = sample(state, model, rmemory, configs, monitor)
+            losses1 = train(model, rmemory, configs, iteration_id)
+            losses += losses1
+            for i, e in enumerate(scores1):
+                scores[i] += e
+            action_nums += action_nums1
+            need_check = iteration_id % args.check_interval == 0
+            if need_check:
+                state.reset()
+                model.set_training(False)
+                max_Q1 = model.get_max_Q(state)
+                action = model.get_action(state)
+                state.do_action(1, action)
+                max_Q2 = model.get_max_Q(state)
+                avg_loss = sum(losses) / len(losses)
+                avg_action_num = sum(action_nums) / len(action_nums)
+                print('{} iter: {} loss: {:.2f} max_Qs: {:.2f} {:.2f} p1/p2/draw: {}/{}/{} action_num: {}'.format(train_utils.get_current_time_str(), iteration_id, avg_loss, max_Q1, max_Q2, scores[1], scores[2], scores[0], avg_action_num))
+                losses.clear()
+                scores = [0, 0, 0]
+                action_nums.clear()
+                train_flags.check_and_update_train_configs(model.get_model_path(), configs)
+            if iteration_id % args.save_model_interval == 0 or (need_check and train_flags.check_and_clear_save_model_flag_file(model.get_model_path())):
+                model.save()
+                print('model {} saved'.format(model.get_model_path()))
+            if need_check and train_flags.check_and_clear_stop_train_flag_file(model.get_model_path()):
+                print('stopped')
+                break
+            if args.iteration_num > 0 and iteration_id >= args.iteration_num:
+                print('finish')
+                break

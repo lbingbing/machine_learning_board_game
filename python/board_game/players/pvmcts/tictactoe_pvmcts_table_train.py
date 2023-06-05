@@ -6,8 +6,6 @@ state = tictactoe_state.TicTacToeState()
 model = tictactoe_pvmcts_table_player.create_model(state)
 
 configs = {
-    'check_interval': 500,
-    'save_model_interval': 100000,
     'episode_num_per_iteration': 2,
     'sim_num': 100,
     'dirichlet_factor': 0.25,

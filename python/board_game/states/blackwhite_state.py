@@ -63,6 +63,9 @@ class BlackWhiteState:
     def get_prev_player_id(self, player_id):
         return 3 - player_id
 
+    def get_last_action(self):
+        return self.last_action
+
     def get_legal_actions(self, player_id):
         assert player_id == self.cur_player_id
 

@@ -7,6 +7,7 @@ import queue
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..players import player
+from ..players.transcript import transcript_player
 from . import utils
 
 class GameWidget(QtWidgets.QWidget):
@@ -15,70 +16,69 @@ class GameWidget(QtWidgets.QWidget):
 
         self.is_save_transcript = is_save_transcript
 
-        self.init_state()
-        self.init_players(player_types)
+        self.state = self.create_state()
+        self.players = [self.create_player(self.state, player_type, player_id) for player_id, player_type in enumerate(player_types, 1)]
         self.has_human_player = any(player.is_human(p) for p in self.players)
 
-        self.init_gui_parameters()
+        self.unit_size = self.get_unit_size()
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
         self.setFixedSize(self.unit_size * (self.state.get_board_shape()[1] + 1), self.unit_size * (self.state.get_board_shape()[0] + 1))
         self.installEventFilter(self)
 
         self.init_get_action_worker()
 
+        self.game_num = 0
+
         self.reset()
 
-    def init_state(self):
+    def create_state(self):
         raise NotImplementedError()
-
-    def init_players(self, player_types):
-        self.players = [self.create_player(self.state, player_type, player_id) for player_id, player_type in enumerate(player_types, 1)]
 
     def create_player(self, state, player_type, player_id):
         raise NotImplementedError()
 
-    def init_gui_parameters(self):
+    def get_unit_size(self):
         raise NotImplementedError()
 
     def init_get_action_worker(self):
-        self.computer_step_delay = 0.5
-        self.computer_action_polling_interval = 0.1
+        self.step_delay = 0.5
+        self.action_polling_interval = 0.1
 
-        self.computer_action_requested = False
+        self.action_requested = False
 
-        self.request_queue = queue.Queue()
-        self.response_queue = queue.Queue()
-        self.worker_thread = threading.Thread(target=self.get_action_worker)
-        self.worker_thread.start()
+        self.get_action_request_queue = queue.Queue()
+        self.get_action_response_queue = queue.Queue()
+        self.get_action_worker_thread = threading.Thread(target=self.get_action_worker)
+        self.get_action_worker_thread.start()
 
-        self.timer = QtCore.QTimer(self)
-        self.timer.setInterval(self.computer_action_polling_interval * 1000)
-        self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self.poll_computer_action)
+        self.poll_action_timer = QtCore.QTimer(self)
+        self.poll_action_timer.setInterval(self.action_polling_interval * 1000)
+        self.poll_action_timer.setSingleShot(True)
+        self.poll_action_timer.timeout.connect(self.poll_action)
 
     def get_action_worker(self):
         while True:
-            item = self.request_queue.get()
+            item = self.get_action_request_queue.get()
             if item is None:
                 break
             func, arg = item
             action = func(arg)
-            time.sleep(self.computer_step_delay)
-            self.response_queue.put(action)
+            time.sleep(self.step_delay)
+            self.get_action_response_queue.put(action)
 
     def stop_get_action_worker(self):
-        self.request_queue.put(None)
-        self.worker_thread.join()
+        self.get_action_request_queue.put(None)
+        self.get_action_worker_thread.join()
 
-    def stop_compute_action_request(self):
-        if self.timer.isActive():
-            self.timer.stop()
-        if self.computer_action_requested:
-            self.response_queue.get()
-            self.computer_action_requested = False
+    def stop_action_request(self):
+        if self.poll_action_timer.isActive():
+            self.poll_action_timer.stop()
+        if self.action_requested:
+            self.get_action_response_queue.get()
+            self.action_requested = False
 
     def reset(self):
-        self.stop_compute_action_request()
+        self.stop_action_request()
 
         self.cur_player_index = 0
         self.state.reset()
@@ -87,8 +87,8 @@ class GameWidget(QtWidgets.QWidget):
         self.update()
 
     def start(self):
-        if self.is_computer_trun():
-            self.computer_step()
+        if not self.is_human_turn():
+            self.request_action()
 
     def get_cur_player(self):
         return self.players[self.cur_player_index]
@@ -96,27 +96,24 @@ class GameWidget(QtWidgets.QWidget):
     def toggle_player(self):
         self.cur_player_index = (self.cur_player_index + 1) % len(self.players)
 
-    def is_computer_trun(self):
-        return not player.is_human(self.get_cur_player())
+    def is_human_turn(self):
+        return player.is_human(self.get_cur_player())
 
-    def computer_step(self):
-        self.request_computer_action()
+    def request_action(self):
+        self.get_action_request_queue.put((self.get_cur_player().get_action, self.state))
+        self.action_requested = True
+        self.poll_action_timer.start()
 
-    def request_computer_action(self):
-        self.request_queue.put((self.get_cur_player().get_action, self.state))
-        self.computer_action_requested = True
-        self.timer.start()
-
-    def poll_computer_action(self):
+    def poll_action(self):
         try:
-            action = self.response_queue.get(block=False)
-            self.computer_action_requested = False
+            action = self.get_action_response_queue.get(block=False)
+            self.action_requested = False
             self.apply_action(action)
             self.set_marker(action)
             self.update()
             self.on_action_end()
         except queue.Empty:
-            self.timer.start()
+            self.poll_action_timer.start()
 
     def handle_human_action(self, x, y):
         raise NotImplementedError()
@@ -129,18 +126,18 @@ class GameWidget(QtWidgets.QWidget):
     def on_action_end(self):
         result = self.state.get_result()
         if result >= 0:
+            self.game_num += 1
             if result > 0:
-                msg = 'player {} ({}) wins'.format(result, self.get_cur_player().get_type())
-                QtWidgets.QMessageBox.information(self, 'Info', msg)
+                msg = 'game {}, player {} ({}) wins'.format(self.game_num, result, self.get_cur_player().get_type())
             elif result == 0:
-                msg = 'draw'
-                QtWidgets.QMessageBox.information(self, 'Info', msg)
+                msg = 'game {}, draw'.format(self.game_num)
+            QtWidgets.QMessageBox.information(self, 'Info', msg)
             if self.is_save_transcript:
-                save_transcript(self.get_transcript_save_path(), self.actions)
+                transcript_player.save_transcript(self.get_transcript_save_path(), self.actions)
         else:
             self.toggle_player()
-            if self.is_computer_trun():
-                self.computer_step()
+            if not self.is_human_turn():
+                self.request_action()
 
     def get_transcript_save_path(self):
         raise NotImplementedError()
@@ -201,7 +198,7 @@ class GameWidget(QtWidgets.QWidget):
         return super().eventFilter(obj, event)
 
     def closeEvent(self, event):
-        self.stop_compute_action_request()
+        self.stop_action_request()
         self.stop_get_action_worker()
 
 def main(Widget):

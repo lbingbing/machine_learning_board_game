@@ -366,6 +366,7 @@ class CChessState:
             ]
         self.board_history = []
         self.cur_player_id = 1
+        self.last_action = None
         self.action_num = 0
         self.no_kill_action_num = 0
 
@@ -401,6 +402,9 @@ class CChessState:
 
     def get_next_player_id(self, player_id):
         return 3 - player_id
+
+    def get_last_action(self):
+        return self.last_action
 
     def get_legal_actions(self, player_id):
         assert player_id == self.cur_player_id
@@ -473,6 +477,7 @@ class CChessState:
         self.board[action[2]][action[3]] = self.board[action[0]][action[1]]
         self.board[action[0]][action[1]] = NUL
         self.cur_player_id = self.get_next_player_id(self.cur_player_id)
+        self.last_action = action
         self.action_num += 1
 
     def swap_players(self):

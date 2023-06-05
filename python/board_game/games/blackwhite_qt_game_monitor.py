@@ -1,7 +1,7 @@
 from . import blackwhite_qt_game_utils
-from . import qt_game
+from . import qt_game_monitor
 
-class BlackWhiteGameWidget(qt_game.GameWidget):
+class BlackWhiteGameMonitorWidget(qt_game_monitor.GameMonitorWidget):
     def reset_marker(self):
         self.marker = None
 
@@ -16,12 +16,3 @@ class BlackWhiteGameWidget(qt_game.GameWidget):
 
     def draw_marker(self, painter):
         blackwhite_qt_game_utils.draw_marker(self.marker, self.get_piece_rect, painter)
-
-    def handle_human_action(self, x, y):
-        if not self.state.is_end() and self.is_human_turn():
-            action = self.get_board_position(x, y)
-            if action is not None and action in self.state.get_legal_actions(self.get_cur_player().get_player_id()):
-                self.apply_action(action)
-                self.set_marker(action)
-                self.update()
-                self.on_action_end()

@@ -6,8 +6,6 @@ state = gomoku_state.create_state()
 model = gomoku_pvmcts_torch_nn_player.create_model(state)
 
 configs = {
-    'check_interval': 100,
-    'save_model_interval': 10000,
     'episode_num_per_iteration': 2,
     'sim_num': 1000,
     'dirichlet_factor': 0.25,
