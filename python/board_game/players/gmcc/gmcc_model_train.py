@@ -67,11 +67,13 @@ def main(state, model, configs):
     train_utils.add_train_arguments(parser)
     args = parser.parse_args()
 
-    if not train_flags.check_and_update_train_configs(model.get_model_path(), configs):
-        print('train configs:')
-        train_flags.print_train_configs(configs)
+    train_utils.init_model_log(model.get_model_path())
 
     train_utils.init_model(model, args.device)
+
+    training_context = train_utils.create_training_context(model.get_model_path(), configs)
+    start_iteration_id = training_context['start_iteration_id']
+    configs = training_context['configs']
 
     rmemory = replay_memory.ReplayMemory(configs['replay_memory_size'])
 
@@ -80,6 +82,8 @@ def main(state, model, configs):
     action_nums = []
     with train_monitor.create_training_monitor(args.monitor_port) as monitor:
         for iteration_id in itertools.count(1):
+            if iteration_id % args.check_interval == 1:
+                train_flags.check_and_update_train_configs(model.get_model_path(), configs)
             scores1, action_nums1 = sample(state, model, rmemory, configs, monitor)
             losses1 = train(model, rmemory, configs, iteration_id)
             losses += losses1
@@ -96,17 +100,18 @@ def main(state, model, configs):
                 max_Q2 = model.get_max_Q(state)
                 avg_loss = sum(losses) / len(losses)
                 avg_action_num = sum(action_nums) / len(action_nums)
-                print('{} iter: {} loss: {:.2f} max_Qs: {:.2f} {:.2f} p1/p2/draw: {}/{}/{} action_num: {}'.format(train_utils.get_current_time_str(), iteration_id, avg_loss, max_Q1, max_Q2, scores[1], scores[2], scores[0], avg_action_num))
+                train_utils.log('{} iter: {} loss: {:.2f} max_Qs: {:.2f} {:.2f} p1/p2/draw: {}/{}/{} action_num: {}'.format(train_utils.get_current_time_str(), iteration_id, avg_loss, max_Q1, max_Q2, scores[1], scores[2], scores[0], avg_action_num))
                 losses.clear()
                 scores = [0, 0, 0]
                 action_nums.clear()
-                train_flags.check_and_update_train_configs(model.get_model_path(), configs)
             if iteration_id % args.save_model_interval == 0 or (need_check and train_flags.check_and_clear_save_model_flag_file(model.get_model_path())):
                 model.save()
-                print('model {} saved'.format(model.get_model_path()))
+                training_context['start_iteration_id'] = iteration_id + 1
+                train_utils.save_training_context(model.get_model_path(), training_context)
+                train_utils.log('model {} saved'.format(model.get_model_path()))
             if need_check and train_flags.check_and_clear_stop_train_flag_file(model.get_model_path()):
-                print('stopped')
+                train_utils.log('stopped')
                 break
             if args.iteration_num > 0 and iteration_id >= args.iteration_num:
-                print('finish')
+                train_utils.log('finish')
                 break

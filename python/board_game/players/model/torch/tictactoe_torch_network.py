@@ -6,8 +6,8 @@ class Backbone(torch.nn.Module):
     def __init__(self, state_shape, action_dim):
         super().__init__()
 
-        dim1 = state_shape[1] * state_shape[2] * state_shape[3]
-        dim2 = dim1 ** 2
+        dim1 = state_shape[2] * state_shape[3]
+        dim2 = dim1 * action_dim
         self.layers = torch.nn.Sequential(
             torch.nn.Flatten(),
             torch.nn.Linear(dim1, dim2),

@@ -16,7 +16,7 @@ def create_train_configs_update_flag_file():
     configs = {
         'sim_num': 10,
         }
-    with open('train_configs_update', 'w') as f:
+    with open('flag.train_configs_update', 'w') as f:
         json.dump(configs, f, indent=4)
 
 create_train_configs_update_flag_file()

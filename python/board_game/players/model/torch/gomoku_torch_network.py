@@ -6,13 +6,27 @@ class Backbone(torch.nn.Module):
     def __init__(self, state_shape, action_dim):
         super().__init__()
 
-        channel_num = int((state_shape[2] * state_shape[3]) ** 0.5)
-        self.layers = torch.nn.Sequential(
-            torch.nn.Conv2d(state_shape[1], channel_num, 5, padding=2),
-            torch_network.ConvResidualBlock(channel_num, 5),
-            torch_network.ConvResidualBlock(channel_num, 5),
-            torch_network.ConvResidualBlock(channel_num, 5),
+        channel_num = ((int((state_shape[2] * state_shape[3]) ** 0.5) + 15) // 16) * 16
+        sequential1 = torch.nn.Sequential(
+            torch.nn.Conv2d(state_shape[1], channel_num, 3, padding=1),
+            torch_network.ConvResidualBlock(channel_num, 3),
+            torch_network.ConvResidualBlock(channel_num, 3),
+            torch_network.ConvResidualBlock(channel_num, 3),
+            torch_network.ConvResidualBlock(channel_num, 3),
             torch.nn.Flatten(),
+            )
+        dim = torch_network.get_output_dim(sequential1, (2, *state_shape[1:])) // 2
+        sequential2 = torch.nn.Sequential(
+            torch.nn.Linear(dim, action_dim),
+            torch.nn.ReLU(),
+            torch_network.FcResidualBlock(action_dim),
+            torch_network.FcResidualBlock(action_dim),
+            torch_network.FcResidualBlock(action_dim),
+            torch_network.FcResidualBlock(action_dim),
+            )
+        self.layers = torch.nn.Sequential(
+            sequential1,
+            sequential2,
             )
 
     def forward(self, x):
