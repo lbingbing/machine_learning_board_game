@@ -14,6 +14,7 @@ def run(cmd, timeout=None):
 
 def create_train_configs_update_flag_file():
     configs = {
+        'exploring_starts': [0.5, 0],
         'sim_num': 10,
         }
     with open('flag.train_configs_update', 'w') as f:

@@ -5,16 +5,6 @@ from . import pvmcts_model_train
 state = tictactoe_state.create_state()
 model = tictactoe_pvmcts_torch_nn_player.create_model(state)
 
-configs = {
-    'episode_num_per_iteration': 2,
-    'sim_num': 1000,
-    'dirichlet_factor': 0.25,
-    'dirichlet_alpha': 0.03,
-    'replay_memory_size': 4096,
-    'batch_num_per_iteration': 2,
-    'batch_size': 32,
-    'dynamic_learning_rate': 0.001,
-    'vloss_factor': 1,
-    }
+configs = pvmcts_model_train.get_default_configs()
 
 pvmcts_model_train.main(state, model, configs)

@@ -3,39 +3,66 @@ import itertools
 
 from . import pvmcts
 from ..utils import train_utils
+from ..utils import state_memory
 from ..utils import replay_memory
 from ..utils import train_flags
 from ..utils import train_monitor
 
-def sample(state, model, rmemory, configs, monitor):
+def get_default_configs():
+    return {
+        'episode_num_per_iteration': 1,
+        'exploring_starts': [0, 0],
+        'state_memory_size': 4096,
+        'sim_num': 1000,
+        'dirichlet_factor': 0.25,
+        'dirichlet_alpha': 0.03,
+        'replay_memory_size': 4096,
+        'batch_num_per_iteration': 1,
+        'batch_size': 32,
+        'dynamic_learning_rate': 0.001,
+        'vloss_factor': 1,
+        }
+
+def sample(state, model, smemory, rmemory, configs, monitor):
     model.set_training(False)
 
     episode_num_per_iteration = configs['episode_num_per_iteration']
+    exploring_starts = configs['exploring_starts']
     sim_num = configs['sim_num']
     dirichlet_factor = configs['dirichlet_factor']
     dirichlet_alpha = configs['dirichlet_alpha']
 
+    smemory.resize(configs['state_memory_size'])
     rmemory.resize(configs['replay_memory_size'])
 
     scores = [0] * 3
     action_nums = []
     for episode_id in range(episode_num_per_iteration):
         samples = []
-        state.reset()
+        is_exploring_starts, start_state = train_utils.get_exploring_starts(exploring_starts, smemory)
+        if is_exploring_starts:
+            state = start_state
+        else:
+            state.reset()
         if monitor:
             monitor.send_state(state.clone())
-        pvmcts_tree = pvmcts.PVMctsTree(model, state, 1, sim_num, is_training=True, dirichlet_factor=dirichlet_factor, dirichlet_alpha=dirichlet_alpha)
-        for t, player_id in zip(itertools.count(), itertools.cycle((1, 2))):
+        cur_player_id = state.get_cur_player_id()
+        next_player_id = state.get_next_player_id(cur_player_id)
+        pvmcts_tree = pvmcts.PVMctsTree(model, state, cur_player_id, sim_num, is_training=True, dirichlet_factor=dirichlet_factor, dirichlet_alpha=dirichlet_alpha)
+        for t, player_id in zip(itertools.count(state.get_action_num()), itertools.cycle((cur_player_id, next_player_id))):
+            state1 = state.clone()
+            smemory.record(state1)
             action, P = pvmcts_tree.get_action(state, player_id)
-            samples.append((state.clone(), P))
             state.do_action(player_id, action)
+            samples.append((state1, P))
             if monitor:
                 monitor.send_state(state.clone())
             result = state.get_result()
             if state.is_end(result):
                 break
-        scores[result] += 1
-        action_nums.append(state.get_action_num())
+        if not is_exploring_starts:
+            scores[result] += 1
+            action_nums.append(state.get_action_num())
         if result == 1:
             Vs = (1, -1)
         elif result == 2:
@@ -68,7 +95,7 @@ def main(state, model, configs):
     train_utils.add_train_arguments(parser)
     args = parser.parse_args()
 
-    train_utils.init_model_log(model.get_model_path())
+    train_utils.init_train_log(model.get_model_path())
 
     train_utils.init_model(model, args.device)
 
@@ -76,6 +103,7 @@ def main(state, model, configs):
     start_iteration_id = training_context['start_iteration_id']
     configs = training_context['configs']
 
+    smemory = state_memory.StateMemory(configs['state_memory_size'])
     rmemory = replay_memory.ReplayMemory(configs['replay_memory_size'])
 
     plosses = []
@@ -83,10 +111,10 @@ def main(state, model, configs):
     scores = [0, 0, 0]
     action_nums = []
     with train_monitor.create_training_monitor(args.monitor_port) as monitor:
-        for iteration_id in itertools.count(1):
+        for iteration_id in itertools.count(start_iteration_id):
             if iteration_id % args.check_interval == 1:
                 train_flags.check_and_update_train_configs(model.get_model_path(), configs)
-            scores1, action_nums1 = sample(state, model, rmemory, configs, monitor)
+            scores1, action_nums1 = sample(state, model, smemory, rmemory, configs, monitor)
             plosses1, vlosses1 = train(model, rmemory, configs, iteration_id)
             plosses += plosses1
             vlosses += vlosses1
