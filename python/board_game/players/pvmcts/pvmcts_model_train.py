@@ -95,12 +95,10 @@ def main(state, model, configs):
     train_utils.add_train_arguments(parser)
     args = parser.parse_args()
 
-    train_utils.init_train_log(model.get_model_path())
+    train_utils.init_training(model, args.device)
 
-    train_utils.init_model(model, args.device)
-
-    training_context = train_utils.create_training_context(model.get_model_path(), configs)
-    start_iteration_id = training_context['start_iteration_id']
+    training_context = train_utils.create_training_context(model.get_model_dir_path(), configs)
+    start_iteration_id = training_context['done_iteration_num'] + 1
     configs = training_context['configs']
 
     smemory = state_memory.StateMemory(configs['state_memory_size'])
@@ -110,10 +108,32 @@ def main(state, model, configs):
     vlosses = []
     scores = [0, 0, 0]
     action_nums = []
+
+    def check_fn(iteration_id):
+        state.reset()
+        model.set_training(False)
+        V1 = model.get_V(state)
+        legal_P_logit_range1 = model.get_legal_P_logit_range(state)
+        legal_P_range1 = model.get_legal_P_range(state)
+        action = model.get_action(state)
+        state.do_action(1, action)
+        V2 = model.get_V(state)
+        legal_P_logit_range2 = model.get_legal_P_logit_range(state)
+        legal_P_range2 = model.get_legal_P_range(state)
+        avg_ploss = sum(plosses) / len(plosses)
+        avg_vloss = sum(vlosses) / len(vlosses)
+        avg_action_num = sum(action_nums) / len(action_nums)
+        train_utils.log('{} iter: {} ploss: {:.2f} vloss: {:.2f} Vs: {:.2f} {:.2f} P_logit_ranges: [{:.2f}, {:.2f}] [{:.2f}, {:.2f}] P_ranges: [{:.2f}, {:.2f}] [{:.2f}, {:.2f}] p1/p2/draw: {}/{}/{} action_num: {:.2f}'.format(train_utils.get_current_time_str(), iteration_id, avg_ploss, avg_vloss, V1, V2, *legal_P_logit_range1, *legal_P_logit_range2, *legal_P_range1, *legal_P_range2, scores[1], scores[2], scores[0], avg_action_num))
+        plosses.clear()
+        vlosses.clear()
+        for i in range(len(scores)):
+            scores[i] = 0
+        action_nums.clear()
+
     with train_monitor.create_training_monitor(args.monitor_port) as monitor:
         for iteration_id in itertools.count(start_iteration_id):
             if iteration_id % args.check_interval == 1:
-                train_flags.check_and_update_train_configs(model.get_model_path(), configs)
+                train_flags.check_and_update_train_configs(model.get_model_dir_path(), configs)
             scores1, action_nums1 = sample(state, model, smemory, rmemory, configs, monitor)
             plosses1, vlosses1 = train(model, rmemory, configs, iteration_id)
             plosses += plosses1
@@ -121,34 +141,6 @@ def main(state, model, configs):
             for i, e in enumerate(scores1):
                 scores[i] += e
             action_nums += action_nums1
-            need_check = iteration_id % args.check_interval == 0
-            if need_check:
-                state.reset()
-                model.set_training(False)
-                V1 = model.get_V(state)
-                legal_P_logit_range1 = model.get_legal_P_logit_range(state)
-                legal_P_range1 = model.get_legal_P_range(state)
-                action = model.get_action(state)
-                state.do_action(1, action)
-                V2 = model.get_V(state)
-                legal_P_logit_range2 = model.get_legal_P_logit_range(state)
-                legal_P_range2 = model.get_legal_P_range(state)
-                avg_ploss = sum(plosses) / len(plosses)
-                avg_vloss = sum(vlosses) / len(vlosses)
-                avg_action_num = sum(action_nums) / len(action_nums)
-                train_utils.log('{} iter: {} ploss: {:.2f} vloss: {:.2f} Vs: {:.2f} {:.2f} P_logit_ranges: [{:.2f}, {:.2f}] [{:.2f}, {:.2f}] P_ranges: [{:.2f}, {:.2f}] [{:.2f}, {:.2f}] p1/p2/draw: {}/{}/{} action_num: {:.2f}'.format(train_utils.get_current_time_str(), iteration_id, avg_ploss, avg_vloss, V1, V2, *legal_P_logit_range1, *legal_P_logit_range2, *legal_P_range1, *legal_P_range2, scores[1], scores[2], scores[0], avg_action_num))
-                plosses.clear()
-                vlosses.clear()
-                scores = [0, 0, 0]
-                action_nums.clear()
-            if iteration_id % args.save_model_interval == 0 or (need_check and train_flags.check_and_clear_save_model_flag_file(model.get_model_path())):
-                model.save()
-                training_context['start_iteration_id'] = iteration_id + 1
-                train_utils.save_training_context(model.get_model_path(), training_context)
-                train_utils.log('model {} saved'.format(model.get_model_path()))
-            if need_check and train_flags.check_and_clear_stop_train_flag_file(model.get_model_path()):
-                train_utils.log('stopped')
-                break
-            if args.iteration_num > 0 and iteration_id >= args.iteration_num:
-                train_utils.log('finish')
+            stop = train_utils.post_iteration(iteration_id, args.iteration_num, args.check_interval, args.save_model_interval, args.checkpoint_interval, model, training_context, check_fn)
+            if stop:
                 break
